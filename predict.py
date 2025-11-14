@@ -63,33 +63,51 @@ class Predictor(BasePredictor):
         image: Path = Input(
             description="Input image file containing a face (JPEG, PNG, WEBP). "
                        "Supports both file uploads and URLs."
+        ),
+        analysis_level: str = Input(
+            description="Analysis depth: 'health' (ultra-fast health check <100ms, no image processing), "
+                       "'full' (complete analysis with all features). "
+                       "Use 'health' for keep-warm pings to minimize latency.",
+            default="full",
+            choices=["health", "full"]
         )
     ) -> Dict[str, Any]:
         """
-        Run comprehensive face analysis on input image.
+        Run face analysis on input image with configurable depth.
 
         Best Practice: Return consistent error structure for failed predictions.
         All errors return {"face_detected": false, "error": "message"}
 
         Args:
             image: Path to image file (local or from URL)
+            analysis_level: Analysis depth - 'health' or 'full'
 
         Returns:
-            Dictionary with comprehensive facial attributes including:
-            - face_detected (bool): Whether a face was found
-            - embedding (list): 512-dimensional face embedding vector
-            - age (int): Estimated age
-            - gender (str): "male" or "female"
-            - expression (dict): Emotion analysis with confidence scores
-            - quality (dict): Image quality metrics (blur, illumination)
-            - symmetry_score (float): Facial symmetry (0-1)
-            - skin_tone (dict): Dominant skin color in LAB and hex
-            - geometry (dict): Facial proportion ratios
-            - error (str): Error message if face_detected is false
+            - For 'health' mode: {"status": "healthy", "model_loaded": true}
+            - For 'full' mode: Dictionary with comprehensive facial attributes including:
+                * face_detected (bool): Whether a face was found
+                * embedding (list): 512-dimensional face embedding vector
+                * age (int): Estimated age
+                * gender (str): "male" or "female"
+                * expression (dict): Emotion analysis with confidence scores
+                * quality (dict): Image quality metrics (blur, illumination)
+                * symmetry_score (float): Facial symmetry (0-1)
+                * skin_tone (dict): Dominant skin color in LAB and hex
+                * geometry (dict): Facial proportion ratios
+                * error (str): Error message if face_detected is false
         """
         try:
+            # Health check mode: ultra-fast ping without any image processing
+            if analysis_level == "health":
+                logger.info("Health check ping - skipping image processing")
+                return {
+                    "status": "healthy",
+                    "model_loaded": True,
+                    "message": "Model is warm and ready for predictions"
+                }
+
             # Validate and read image
-            logger.info(f"Processing image: {image}")
+            logger.info(f"Processing image: {image} (mode: {analysis_level})")
             img = cv2.imread(str(image))
 
             if img is None:
