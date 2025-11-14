@@ -4,8 +4,15 @@ Replicate Model - Advanced Face Analysis
 Comprehensive face analysis using InsightFace, DeepFace, and OpenCV.
 Extracts 15+ facial attributes for AI-powered matching applications.
 
-Input: Image file (JPEG, PNG)
+Input: Image file (JPEG, PNG) - supports URLs and file uploads
 Output: JSON with face embeddings, age, gender, emotion, quality metrics, etc.
+
+Best Practices:
+- Type hints for better API documentation
+- Proper error handling with detailed messages
+- GPU acceleration with CPU fallback
+- Input validation
+- Efficient model loading
 """
 
 from cog import BasePredictor, Input, Path
@@ -15,6 +22,7 @@ from insightface.app import FaceAnalysis
 from deepface import DeepFace
 from sklearn.cluster import KMeans
 import logging
+from typing import Dict, Any, List, Tuple, Optional
 
 # Configure logging
 logging.basicConfig(
@@ -25,59 +33,97 @@ logger = logging.getLogger(__name__)
 
 
 class Predictor(BasePredictor):
-    def setup(self):
+    def setup(self) -> None:
         """
-        Load models into memory (called once on container start)
-        This method runs when the container is initialized
+        Load models into memory (called once on container start).
+        This method runs when the container is initialized.
+
+        Best Practice: Load heavy models here, not in predict()
+        This ensures models are loaded once and reused across predictions.
         """
-        logger.info("Loading InsightFace model...")
+        logger.info("Initializing face analysis models...")
 
-        # Initialize InsightFace with GPU support
-        self.face_app = FaceAnalysis(
-            providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
-        )
-        self.face_app.prepare(ctx_id=0, det_size=(640, 640))
+        try:
+            # Initialize InsightFace with GPU support and CPU fallback
+            # Providers are tried in order: CUDA first, then CPU
+            self.face_app = FaceAnalysis(
+                providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
+            )
+            self.face_app.prepare(ctx_id=0, det_size=(640, 640))
 
-        logger.info("✓ InsightFace model loaded successfully!")
-        logger.info("Note: DeepFace models will be loaded on first emotion detection call")
+            logger.info("✓ InsightFace model loaded successfully!")
+            logger.info("Note: DeepFace models will load on first emotion detection")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize models: {str(e)}")
+            raise RuntimeError(f"Model initialization failed: {str(e)}")
 
     def predict(
         self,
-        image: Path = Input(description="Input image file containing a face")
-    ) -> dict:
+        image: Path = Input(
+            description="Input image file containing a face (JPEG, PNG, WEBP). "
+                       "Supports both file uploads and URLs."
+        )
+    ) -> Dict[str, Any]:
         """
-        Run comprehensive face analysis on input image
+        Run comprehensive face analysis on input image.
+
+        Best Practice: Return consistent error structure for failed predictions.
+        All errors return {"face_detected": false, "error": "message"}
 
         Args:
-            image: Path to image file
+            image: Path to image file (local or from URL)
 
         Returns:
-            Dictionary with comprehensive facial attributes
+            Dictionary with comprehensive facial attributes including:
+            - face_detected (bool): Whether a face was found
+            - embedding (list): 512-dimensional face embedding vector
+            - age (int): Estimated age
+            - gender (str): "male" or "female"
+            - expression (dict): Emotion analysis with confidence scores
+            - quality (dict): Image quality metrics (blur, illumination)
+            - symmetry_score (float): Facial symmetry (0-1)
+            - skin_tone (dict): Dominant skin color in LAB and hex
+            - geometry (dict): Facial proportion ratios
+            - error (str): Error message if face_detected is false
         """
         try:
-            # Read image from file
+            # Validate and read image
+            logger.info(f"Processing image: {image}")
             img = cv2.imread(str(image))
 
             if img is None:
+                logger.error("Failed to read image file")
                 return {
                     "face_detected": False,
-                    "error": "Invalid image format or unable to read file"
+                    "error": "Invalid image format or unable to read file. "
+                           "Supported formats: JPEG, PNG, WEBP"
                 }
 
-            logger.info(f"Processing image: {image}")
+            # Validate image dimensions
+            if img.shape[0] < 50 or img.shape[1] < 50:
+                logger.error(f"Image too small: {img.shape}")
+                return {
+                    "face_detected": False,
+                    "error": f"Image too small ({img.shape[1]}x{img.shape[0]}). "
+                           "Minimum size: 50x50 pixels"
+                }
 
-            # Detect faces
+            # Detect faces using InsightFace
             faces = self.face_app.get(img)
 
             if len(faces) == 0:
                 logger.warning("No face detected in image")
                 return {
                     "face_detected": False,
-                    "error": "No face detected in image"
+                    "error": "No face detected in image. "
+                           "Please ensure image contains a clear, visible face."
                 }
 
-            # Use first detected face (highest confidence)
+            # Use first detected face (highest confidence by default)
             face = faces[0]
+            logger.info(f"Detected {len(faces)} face(s), using primary face with "
+                       f"confidence: {face.det_score:.3f}")
 
             # Extract basic attributes
             embedding = face.embedding.tolist()
@@ -153,8 +199,16 @@ class Predictor(BasePredictor):
 
     # ===== HELPER METHODS =====
 
-    def extract_landmarks_68(self, face):
-        """Extract 68-point facial landmarks from InsightFace face object"""
+    def extract_landmarks_68(self, face) -> Optional[List[List[float]]]:
+        """
+        Extract 68-point facial landmarks from InsightFace face object.
+
+        Args:
+            face: InsightFace face detection object
+
+        Returns:
+            List of [x, y] coordinates or None if not available
+        """
         # InsightFace provides 106 landmarks, we use first 68 for compatibility
         if hasattr(face, 'landmark_2d_106') and face.landmark_2d_106 is not None:
             return face.landmark_2d_106[:68].tolist()
@@ -163,8 +217,16 @@ class Predictor(BasePredictor):
             return face.kps.tolist()
         return None
 
-    def extract_pose(self, face):
-        """Extract head pose (yaw, pitch, roll) from face object"""
+    def extract_pose(self, face) -> Dict[str, float]:
+        """
+        Extract head pose angles (yaw, pitch, roll) from face object.
+
+        Args:
+            face: InsightFace face detection object
+
+        Returns:
+            Dictionary with yaw, pitch, roll angles in degrees
+        """
         pose = {"yaw": 0.0, "pitch": 0.0, "roll": 0.0}
 
         if hasattr(face, 'pose') and face.pose is not None:
@@ -177,10 +239,15 @@ class Predictor(BasePredictor):
 
         return pose
 
-    def calculate_symmetry_score(self, landmarks):
+    def calculate_symmetry_score(self, landmarks: Optional[List]) -> float:
         """
-        Calculate facial symmetry by comparing left vs right features
-        Returns: 0.0-1.0 (1.0 = perfect symmetry)
+        Calculate facial symmetry by comparing left vs right features.
+
+        Args:
+            landmarks: List of facial landmark coordinates
+
+        Returns:
+            Symmetry score from 0.0 to 1.0 (1.0 = perfect symmetry)
         """
         if landmarks is None or len(landmarks) < 68:
             return 0.75  # Default moderate symmetry if landmarks unavailable

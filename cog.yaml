@@ -1,16 +1,10 @@
 build:
   gpu: true
+  cuda: "11.8"
   python_version: "3.11"
-  python_packages:
-    - "insightface==0.7.3"
-    - "onnxruntime-gpu==1.23.2"
-    - "deepface==0.0.95"
-    - "tensorflow==2.15.0"
-    - "tf-keras==2.15.0"
-    - "opencv-python-headless==4.10.0.84"
-    - "numpy==1.26.4"
-    - "scikit-learn==1.7.2"
-    - "scipy==1.16.3"
-    - "protobuf==3.20.3"
+  system_packages:
+    - "libgl1-mesa-glx"
+    - "libglib2.0-0"
+  python_requirements: "requirements.txt"
 
 predict: "predict.py:Predictor"

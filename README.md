@@ -132,34 +132,93 @@ cog run python
 
 ### Prerequisites
 
+- Docker installed and running
+- [Cog](https://github.com/replicate/cog) installed (see installation above)
 - Replicate account ([replicate.com](https://replicate.com))
-- Model created on Replicate platform
+- Replicate API token from https://replicate.com/account/api-tokens
 
-### Create Model
+### Deployment Steps
 
-1. Visit https://replicate.com/create
-2. Create new model: `<your-username>/face-analysis-advanced`
-3. Set visibility (private or public)
+#### 1. Open WSL2 Terminal (Windows) or Terminal (Mac/Linux)
 
-### Deploy
-
+**Windows:**
 ```bash
-# Login to Replicate
-cog login
-
-# Push model
-cog push r8.im/<your-username>/face-analysis-advanced
+wsl
 ```
 
-First push takes 15-30 minutes to upload Docker layers and model weights.
+**Mac/Linux:** Use your regular terminal
 
-### Test on Replicate
+#### 2. Navigate to Project Directory
 
-After deployment:
-1. Visit your model page on Replicate
+```bash
+cd /mnt/d/Nemo/Others/side-projects/ai-matching/replicate-model  # Windows WSL2
+# or
+cd ~/path/to/ai-matching/replicate-model  # Mac/Linux
+```
+
+#### 3. Set Replicate API Token
+
+```bash
+export REPLICATE_API_TOKEN=r8_your_token_here
+```
+
+To make it permanent:
+```bash
+echo 'export REPLICATE_API_TOKEN=r8_your_token_here' >> ~/.bashrc
+source ~/.bashrc
+```
+
+#### 4. Build Model Container (First Time)
+
+```bash
+cog build
+```
+
+⏱️ **First build takes 15-30 minutes** (downloads CUDA, dependencies, models)
+⚡ **Subsequent builds are much faster** (2-5 min with cache)
+
+#### 5. Test Locally (Recommended)
+
+```bash
+cog predict -i image=@path/to/test-face.jpg
+```
+
+#### 6. Push to Replicate
+
+```bash
+cog push r8.im/ngocla99/face-analysis
+```
+
+This will:
+- Build and upload Docker image (~5-10 min)
+- Create a new model version
+- Provide URL to access your model
+
+#### 7. Verify on Replicate
+
+1. Visit https://replicate.com/ngocla99/face-analysis
 2. Upload a test image via the web UI
-3. Verify the output matches expected format
-4. Note the model version ID for API integration
+3. Verify the output
+4. Note the version ID for API use
+
+### Troubleshooting Deployment
+
+**Docker not accessible in WSL2:**
+1. Open Docker Desktop
+2. Settings → Resources → WSL Integration
+3. Enable for "Ubuntu" distribution
+4. Restart WSL2: `wsl --shutdown` (from PowerShell)
+
+**Cog command not found:**
+```bash
+sudo curl -o /usr/local/bin/cog -L https://github.com/replicate/cog/releases/latest/download/cog_$(uname -s)_$(uname -m)
+sudo chmod +x /usr/local/bin/cog
+```
+
+**Out of disk space:**
+```bash
+docker system prune -a  # Clean Docker cache
+```
 
 ## API Usage
 
@@ -216,10 +275,34 @@ curl -s -X POST \
 
 ## Performance
 
-- **Cold Start**: 30-60 seconds (first prediction after idle)
-- **Warm Prediction**: 1-3 seconds (subsequent predictions)
-- **GPU**: Nvidia T4 or better
-- **Cost**: ~$0.00022 per prediction (estimated)
+- **Cold Start**: 3-8 minutes (first prediction after idle period)
+- **Warm Prediction**: 3-4 seconds (when container is already running)
+- **Container stays warm**: ~5-10 minutes after last request
+- **GPU**: Nvidia T4
+- **Cost**: $0.000225/sec = $0.81/hour
+  - Warm prediction (3.7s): ~$0.00083 per prediction
+  - Cold start adds 3-8 min of waiting (no extra cost during boot)
+
+### Avoiding Cold Starts
+
+To keep your model warm and avoid 3-8 minute cold starts:
+
+**Option 1: Keep-Alive Cron Job (Recommended - ~$5/month)**
+- Set up a cron job to ping the model every 3-5 minutes
+- Keeps container warm between actual user requests
+- Cost: ~$0.00083 × 288 calls/day = ~$5/month
+- Use Supabase Edge Functions, GitHub Actions, or any cron service
+
+**Option 2: Deployment with Always-On Instance (~$583/month)**
+- Create a deployment with `min_instances=1`
+- Zero cold starts ever
+- Costs $0.81/hour × 24/7 = ~$583/month
+- Only recommended for high-traffic production apps
+
+**Option 3: Accept Cold Starts (Free)**
+- No additional cost
+- First user request after idle takes 3-8 minutes
+- Subsequent requests are fast if < 5-10 min apart
 
 ## Error Handling
 
