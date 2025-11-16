@@ -27,6 +27,9 @@ This model provides comprehensive facial analysis including:
 ## Input
 
 - **image**: Image file (JPEG, PNG) containing a face
+- **analysis_level** (optional): Analysis depth mode (default: "full")
+  - `"health"` - Ultra-fast health check (<100ms, no image processing). Perfect for keep-warm pings.
+  - `"full"` - Complete analysis with all 15+ features (~3-4 seconds)
 
 ## Output
 
@@ -74,6 +77,20 @@ JSON object with comprehensive facial attributes:
 }
 ```
 
+### Health Check Mode Output
+
+Ultra-fast health check (no image processing, <100ms):
+
+```json
+{
+  "status": "healthy",
+  "model_loaded": true,
+  "message": "Model is warm and ready for predictions"
+}
+```
+
+### Error Response
+
 If no face is detected:
 
 ```json
@@ -115,11 +132,17 @@ First build takes 10-20 minutes to download and install all dependencies.
 ### Test Locally
 
 ```bash
-# Test with a sample image
+# Full analysis (default)
 cog predict -i image=@path/to/test-image.jpg
 
-# Example
-cog predict -i image=@../test-images/sample-face.jpg
+# Or explicitly specify full mode
+cog predict -i image=@path/to/test-image.jpg -i analysis_level=full
+
+# Health check (ultra-fast, no processing)
+cog predict -i image=@path/to/test-image.jpg -i analysis_level=health
+
+# Example with actual file
+cog predict -i image=@../test-images/sample-face.jpg -i analysis_level=full
 ```
 
 ### Run Interactive Shell
@@ -231,18 +254,29 @@ const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN!,
 });
 
-// Run prediction
-const output = await replicate.run(
+// Full analysis (default - all features)
+const fullOutput = await replicate.run(
   "your-username/face-analysis-advanced:version-id",
   {
     input: {
-      image: "https://example.com/face.jpg"
-      // or base64: "data:image/jpeg;base64,..."
+      image: "https://example.com/face.jpg",
+      analysis_level: "full"  // Optional, default is "full"
     }
   }
 );
 
-console.log(output);
+// Health check (ultra-fast keep-warm ping)
+const healthCheck = await replicate.run(
+  "your-username/face-analysis-advanced:version-id",
+  {
+    input: {
+      image: "https://example.com/any-image.jpg",  // Image not processed in health mode
+      analysis_level: "health"  // <100ms, no processing
+    }
+  }
+);
+
+console.log(fullOutput);
 ```
 
 ### Python
@@ -250,24 +284,52 @@ console.log(output);
 ```python
 import replicate
 
-output = replicate.run(
+# Full analysis (default)
+full_output = replicate.run(
     "your-username/face-analysis-advanced:version-id",
-    input={"image": "https://example.com/face.jpg"}
+    input={
+        "image": "https://example.com/face.jpg",
+        "analysis_level": "full"  # Optional, default
+    }
 )
 
-print(output)
+# Health check (ultra-fast keep-warm)
+health_check = replicate.run(
+    "your-username/face-analysis-advanced:version-id",
+    input={
+        "image": "https://example.com/any-image.jpg",
+        "analysis_level": "health"  # <100ms
+    }
+)
+
+print(full_output)
 ```
 
 ### cURL
 
 ```bash
+# Full analysis (default)
 curl -s -X POST \
   -H "Authorization: Bearer $REPLICATE_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "version": "version-id",
     "input": {
-      "image": "https://example.com/face.jpg"
+      "image": "https://example.com/face.jpg",
+      "analysis_level": "full"
+    }
+  }' \
+  https://api.replicate.com/v1/predictions
+
+# Health check (ultra-fast keep-warm)
+curl -s -X POST \
+  -H "Authorization: Bearer $REPLICATE_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "version": "version-id",
+    "input": {
+      "image": "https://example.com/tiny-image.jpg",
+      "analysis_level": "health"
     }
   }' \
   https://api.replicate.com/v1/predictions
@@ -276,22 +338,36 @@ curl -s -X POST \
 ## Performance
 
 - **Cold Start**: 3-8 minutes (first prediction after idle period)
-- **Warm Prediction**: 3-4 seconds (when container is already running)
+- **Warm Prediction**:
+  - Health check mode: <100ms (no image processing)
+  - Full analysis: ~3-4 seconds (all features)
 - **Container stays warm**: ~5-10 minutes after last request
 - **GPU**: Nvidia T4
 - **Cost**: $0.000225/sec = $0.81/hour
-  - Warm prediction (3.7s): ~$0.00083 per prediction
+  - Full prediction (3.7s): ~$0.00083 per prediction
+  - Health check (<0.1s): ~$0.000023 per check
   - Cold start adds 3-8 min of waiting (no extra cost during boot)
 
 ### Avoiding Cold Starts
 
 To keep your model warm and avoid 3-8 minute cold starts:
 
-**Option 1: Keep-Alive Cron Job (Recommended - ~$5/month)**
-- Set up a cron job to ping the model every 3-5 minutes
+**Option 1: Health Check Cron Job (Recommended - ~$0.20/month) ⚡ NEW!**
+- Set up a cron job to ping with `analysis_level: "health"` every 3-5 minutes
+- Ultra-fast health checks (<100ms) use minimal compute time
 - Keeps container warm between actual user requests
-- Cost: ~$0.00083 × 288 calls/day = ~$5/month
+- **Cost: ~$0.000023 × 288 calls/day × 30 days = ~$0.20/month** (97% cheaper!)
 - Use Supabase Edge Functions, GitHub Actions, or any cron service
+- Example:
+  ```javascript
+  // Supabase Edge Function (runs every 3 minutes)
+  const output = await replicate.run("your-model", {
+    input: {
+      image: "https://example.com/tiny-image.jpg",
+      analysis_level: "health"  // <100ms, no actual processing
+    }
+  });
+  ```
 
 **Option 2: Deployment with Always-On Instance (~$583/month)**
 - Create a deployment with `min_instances=1`
