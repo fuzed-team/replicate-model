@@ -97,6 +97,9 @@ class Predictor(BasePredictor):
                 * error (str): Error message if face_detected is false
         """
         try:
+            # Log the analysis level for monitoring
+            logger.info(f"Prediction called with analysis_level: {analysis_level}")
+
             # Health check mode: ultra-fast ping without any image processing
             if analysis_level == "health":
                 logger.info("Health check ping - skipping image processing")
