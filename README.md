@@ -1,25 +1,29 @@
 # Advanced Face Analysis - Replicate Model
 
-Comprehensive face analysis model deployed on Replicate using Cog. Extracts 15+ facial attributes for AI-powered matching applications.
+Comprehensive face analysis model deployed on Replicate using Cog. Extracts 15+
+facial attributes for AI-powered matching applications.
 
 ## Features
 
 This model provides comprehensive facial analysis including:
 
 1. **Face Detection** - High-confidence face detection with bounding boxes
-2. **Face Embeddings** - 512-dimensional ArcFace embeddings for similarity matching
+2. **Face Embeddings** - 512-dimensional ArcFace embeddings for similarity
+   matching
 3. **Demographics** - Age estimation and gender classification
 4. **Facial Landmarks** - 68-point facial landmarks
 5. **Head Pose** - Yaw, pitch, and roll angles
 6. **Quality Metrics** - Blur detection and illumination analysis
 7. **Symmetry Analysis** - Facial symmetry score (0-1)
 8. **Skin Tone** - Dominant skin color in CIELAB and hex format
-9. **Emotion Detection** - 7 emotions (happy, sad, angry, fear, surprise, disgust, neutral)
+9. **Emotion Detection** - 7 emotions (happy, sad, angry, fear, surprise,
+   disgust, neutral)
 10. **Facial Geometry** - Key facial proportion ratios
 
 ## Models Used
 
-- **InsightFace (Buffalo_l)** - Face detection, embeddings, age, gender, landmarks, pose
+- **InsightFace (Buffalo_l)** - Face detection, embeddings, age, gender,
+  landmarks, pose
 - **DeepFace** - Emotion/expression recognition
 - **OpenCV** - Image quality metrics (blur, illumination)
 - **K-means Clustering** - Skin tone extraction
@@ -28,7 +32,8 @@ This model provides comprehensive facial analysis including:
 
 - **image**: Image file (JPEG, PNG) containing a face
 - **analysis_level** (optional): Analysis depth mode (default: "full")
-  - `"health"` - Ultra-fast health check (<100ms, no image processing). Perfect for keep-warm pings.
+  - `"health"` - Ultra-fast health check (<100ms, no image processing). Perfect
+    for keep-warm pings.
   - `"full"` - Complete analysis with all 15+ features (~3-4 seconds)
 
 ## Output
@@ -165,6 +170,7 @@ cog run python
 #### 1. Open WSL2 Terminal (Windows) or Terminal (Mac/Linux)
 
 **Windows:**
+
 ```bash
 wsl
 ```
@@ -186,6 +192,7 @@ export REPLICATE_API_TOKEN=r8_your_token_here
 ```
 
 To make it permanent:
+
 ```bash
 echo 'export REPLICATE_API_TOKEN=r8_your_token_here' >> ~/.bashrc
 source ~/.bashrc
@@ -197,8 +204,8 @@ source ~/.bashrc
 cog build
 ```
 
-⏱️ **First build takes 15-30 minutes** (downloads CUDA, dependencies, models)
-⚡ **Subsequent builds are much faster** (2-5 min with cache)
+⏱️ **First build takes 15-30 minutes** (downloads CUDA, dependencies, models) ⚡
+**Subsequent builds are much faster** (2-5 min with cache)
 
 #### 5. Test Locally (Recommended)
 
@@ -206,20 +213,31 @@ cog build
 cog predict -i image=@path/to/test-face.jpg
 ```
 
-#### 6. Push to Replicate
+#### 6. Create a Model on Replicate
+
+1. Go to [replicate.com/create](https://replicate.com/create)
+2. Enter a name for your model (e.g., `face-analysis`)
+3. Set visibility to "Public" or "Private"
+4. Click "Create"
+
+#### 7. Push to Replicate
 
 ```bash
-cog push r8.im/ngocla99/face-analysis
+cog push r8.im/your-username/your-model-name
 ```
 
+Replace `your-username` with your Replicate username and `your-model-name` with
+the name you just created.
+
 This will:
+
 - Build and upload Docker image (~5-10 min)
 - Create a new model version
 - Provide URL to access your model
 
-#### 7. Verify on Replicate
+#### 8. Verify on Replicate
 
-1. Visit https://replicate.com/ngocla99/face-analysis
+1. Visit `https://replicate.com/your-username/your-model-name`
 2. Upload a test image via the web UI
 3. Verify the output
 4. Note the version ID for API use
@@ -227,18 +245,21 @@ This will:
 ### Troubleshooting Deployment
 
 **Docker not accessible in WSL2:**
+
 1. Open Docker Desktop
 2. Settings → Resources → WSL Integration
 3. Enable for "Ubuntu" distribution
 4. Restart WSL2: `wsl --shutdown` (from PowerShell)
 
 **Cog command not found:**
+
 ```bash
 sudo curl -o /usr/local/bin/cog -L https://github.com/replicate/cog/releases/latest/download/cog_$(uname -s)_$(uname -m)
 sudo chmod +x /usr/local/bin/cog
 ```
 
 **Out of disk space:**
+
 ```bash
 docker system prune -a  # Clean Docker cache
 ```
@@ -247,8 +268,8 @@ docker system prune -a  # Clean Docker cache
 
 ### Node.js/TypeScript
 
-```typescript
-import Replicate from 'replicate';
+````typescript
+import Replicate from "replicate";
 
 const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN!,
@@ -256,129 +277,28 @@ const replicate = new Replicate({
 
 // Full analysis (default - all features)
 const fullOutput = await replicate.run(
-  "your-username/face-analysis-advanced:version-id",
+  "your-username/your-model-name:version-id",
   {
     input: {
       image: "https://example.com/face.jpg",
-      analysis_level: "full"  // Optional, default is "full"
-    }
-  }
+      analysis_level: "full", // Optional, default is "full"
+    },
+  },
 );
 
 // Health check (ultra-fast keep-warm ping)
 const healthCheck = await replicate.run(
-  "your-username/face-analysis-advanced:version-id",
+  "your-username/your-model-name:version-id",
   {
     input: {
-      image: "https://example.com/any-image.jpg",  // Image not processed in health mode
-      analysis_level: "health"  // <100ms, no processing
-    }
-  }
+      image: "https://example.com/any-image.jpg", // Image not processed in health mode
+      analysis_level: "health", // <100ms, no processing
+    },
+  },
 );
 
 console.log(fullOutput);
-```
 
-### Python
-
-```python
-import replicate
-
-# Full analysis (default)
-full_output = replicate.run(
-    "your-username/face-analysis-advanced:version-id",
-    input={
-        "image": "https://example.com/face.jpg",
-        "analysis_level": "full"  # Optional, default
-    }
-)
-
-# Health check (ultra-fast keep-warm)
-health_check = replicate.run(
-    "your-username/face-analysis-advanced:version-id",
-    input={
-        "image": "https://example.com/any-image.jpg",
-        "analysis_level": "health"  # <100ms
-    }
-)
-
-print(full_output)
-```
-
-### cURL
-
-```bash
-# Full analysis (default)
-curl -s -X POST \
-  -H "Authorization: Bearer $REPLICATE_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "version": "version-id",
-    "input": {
-      "image": "https://example.com/face.jpg",
-      "analysis_level": "full"
-    }
-  }' \
-  https://api.replicate.com/v1/predictions
-
-# Health check (ultra-fast keep-warm)
-curl -s -X POST \
-  -H "Authorization: Bearer $REPLICATE_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "version": "version-id",
-    "input": {
-      "image": "https://example.com/tiny-image.jpg",
-      "analysis_level": "health"
-    }
-  }' \
-  https://api.replicate.com/v1/predictions
-```
-
-## Performance
-
-- **Cold Start**: 3-8 minutes (first prediction after idle period)
-- **Warm Prediction**:
-  - Health check mode: <100ms (no image processing)
-  - Full analysis: ~3-4 seconds (all features)
-- **Container stays warm**: ~5-10 minutes after last request
-- **GPU**: Nvidia T4
-- **Cost**: $0.000225/sec = $0.81/hour
-  - Full prediction (3.7s): ~$0.00083 per prediction
-  - Health check (<0.1s): ~$0.000023 per check
-  - Cold start adds 3-8 min of waiting (no extra cost during boot)
-
-### Avoiding Cold Starts
-
-To keep your model warm and avoid 3-8 minute cold starts:
-
-**Option 1: Health Check Cron Job (Recommended - ~$0.20/month) ⚡ NEW!**
-- Set up a cron job to ping with `analysis_level: "health"` every 3-5 minutes
-- Ultra-fast health checks (<100ms) use minimal compute time
-- Keeps container warm between actual user requests
-- **Cost: ~$0.000023 × 288 calls/day × 30 days = ~$0.20/month** (97% cheaper!)
-- Use Supabase Edge Functions, GitHub Actions, or any cron service
-- Example:
-  ```javascript
-  // Supabase Edge Function (runs every 3 minutes)
-  const output = await replicate.run("your-model", {
-    input: {
-      image: "https://example.com/tiny-image.jpg",
-      analysis_level: "health"  // <100ms, no actual processing
-    }
-  });
-  ```
-
-**Option 2: Deployment with Always-On Instance (~$583/month)**
-- Create a deployment with `min_instances=1`
-- Zero cold starts ever
-- Costs $0.81/hour × 24/7 = ~$583/month
-- Only recommended for high-traffic production apps
-
-**Option 3: Accept Cold Starts (Free)**
-- No additional cost
-- First user request after idle takes 3-8 minutes
-- Subsequent requests are fast if < 5-10 min apart
 
 ## Error Handling
 
@@ -389,9 +309,10 @@ The model returns structured error responses:
   "face_detected": false,
   "error": "Error message describing the issue"
 }
-```
+````
 
 Common errors:
+
 - "No face detected in image" - Image contains no detectable faces
 - "Invalid image format or unable to read file" - Corrupt or unsupported image
 - Other errors include stack trace for debugging
@@ -414,7 +335,8 @@ replicate-model/
 
 ## Migration from Flask Service
 
-This model is a direct migration from the Python Flask service (`ai-service/app.py`). Key changes:
+This model is a direct migration from the Python Flask service
+(`ai-service/app.py`). Key changes:
 
 - ✅ Removed Flask/CORS/auth code (handled by Replicate)
 - ✅ Changed from multipart/base64 input to Cog's `Path` input
@@ -465,4 +387,5 @@ cog run python
 
 ## License
 
-This model is for use in the AI matching application. Commercial use requires appropriate licensing for InsightFace and DeepFace models.
+This model is for use in the AI matching application. Commercial use requires
+appropriate licensing for InsightFace and DeepFace models.
